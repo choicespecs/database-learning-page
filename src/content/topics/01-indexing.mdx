@@ -1,0 +1,45 @@
+---
+title: "Indexing"
+category: "storage-and-indexing"
+order: 1
+summary: "A separate structure that trades extra storage and slower writes for dramatically faster lookups on specific columns."
+tags: ["indexing", "b-tree", "hash-index"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import IndexingDiagram from "../../components/diagrams/IndexingDiagram.tsx";
+
+Without an index, finding a row means scanning every row in the table and checking whether it matches — a full table scan. An index is a separate data structure, sorted or organized specifically to make lookups on a column fast, at the cost of extra disk space and slightly slower writes (every index has to be updated too).
+
+<FigurePanel number={2} caption="Rows touched searching for one key, scan vs. index">
+  <IndexingDiagram client:visible />
+</FigurePanel>
+
+## B-tree indexes
+
+The default index type in almost every relational database. A B-tree keeps keys in sorted order across a balanced tree of fixed-size pages, so a lookup, insert, or range scan all take **O(log n)** page reads no matter how large the table gets.
+
+```sql
+CREATE INDEX idx_orders_customer_id ON orders (customer_id);
+```
+
+<Callout variant="definition" title="Why B-trees, specifically">
+B-trees stay *balanced* — every leaf is the same distance from the root — and each node holds many keys (not just one or two), so the tree stays shallow even for huge tables. A tree holding a billion rows is typically only 4–5 levels deep.
+</Callout>
+
+## Hash indexes
+
+Some engines offer hash indexes: a hash function maps a key straight to a bucket, giving O(1) point lookups. The catch is they only support exact-match queries — `WHERE id = 5` — not range queries like `WHERE id > 5`, since hashing destroys the original ordering of the keys.
+
+## Composite and covering indexes
+
+An index can span multiple columns (`(customer_id, created_at)`), which speeds up queries that filter or sort on that exact column combination — but column order matters: an index on `(a, b)` helps a query filtering on `a` alone, but not one filtering on `b` alone. A **covering index** includes every column a query needs, letting the database answer entirely from the index without touching the underlying table.
+
+<Callout variant="warning" title="Indexes aren't free">
+Every index adds write overhead — each `INSERT`/`UPDATE`/`DELETE` has to update every index on that table, not just the table itself. A table with ten rarely-queried indexes can slow writes considerably for lookup speed nobody uses. Index what you actually query.
+</Callout>
+
+<Callout variant="example" title="EXPLAIN is how you check">
+Most databases have an `EXPLAIN` (or `EXPLAIN ANALYZE`) command that shows whether a query actually used an index or fell back to a full scan — always worth checking before assuming an index is helping.
+</Callout>

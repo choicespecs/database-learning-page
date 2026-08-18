@@ -1,0 +1,38 @@
+---
+title: "Replication"
+category: "scaling"
+order: 2
+summary: "Copying the same data to multiple nodes for fault tolerance and read scalability — the central trade-off is durability versus write latency."
+tags: ["replication", "leader-follower", "durability"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import ReplicationDiagram from "../../components/diagrams/ReplicationDiagram.tsx";
+
+Replication copies the same data to multiple nodes, so the system survives a node failure and can spread read traffic across replicas. The most common setup is **leader-follower**: all writes go to one leader, which then streams changes out to followers.
+
+<FigurePanel number={5} caption="Synchronous vs. asynchronous replication, on a timeline">
+  <ReplicationDiagram client:visible />
+</FigurePanel>
+
+## Synchronous replication
+
+The leader waits for at least one follower to confirm it has applied the write before telling the client the write succeeded. This guarantees the write survives a leader crash — but write latency is now bounded by the slowest synchronous follower, and if that follower is unreachable, writes can stall entirely.
+
+## Asynchronous replication
+
+The leader acknowledges the write to the client immediately, then streams it to followers in the background. Writes are fast and never blocked by a follower — but there's a window where the leader has data no follower has yet. If the leader crashes in that window, that write is lost, even though the client was told it succeeded.
+
+<Callout variant="definition" title="Semi-synchronous replication">
+A common middle ground: exactly one follower is synchronous (guaranteeing at least two copies of every acknowledged write) while the rest are asynchronous. If the synchronous follower is slow or down, another follower is promoted to take its place.
+</Callout>
+
+```sql
+-- PostgreSQL: require at least one synchronous standby to confirm before commit
+ALTER SYSTEM SET synchronous_standby_names = 'FIRST 1 (replica_a, replica_b)';
+```
+
+<Callout variant="warning" title="Replication lag causes real bugs">
+With async replication, a client can write a value, then immediately read it back from a follower that hasn't caught up yet — appearing as if their own write vanished. This "read-your-writes" problem is why many systems route a user's own reads to the leader for a short window after they write.
+</Callout>

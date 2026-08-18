@@ -1,0 +1,38 @@
+---
+title: "ACID Transactions"
+category: "transactions-and-consistency"
+order: 1
+summary: "A transaction groups several operations so they succeed or fail as one unit — ACID is the set of guarantees that makes that safe."
+tags: ["transactions", "acid", "atomicity", "durability"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import AcidDiagram from "../../components/diagrams/AcidDiagram.tsx";
+
+A transaction bundles multiple reads and writes into a single unit — either the whole thing takes effect, or none of it does. ACID is the classic acronym for the guarantees a transactional database gives you.
+
+<FigurePanel number={6} caption="The four ACID guarantees">
+  <AcidDiagram client:visible />
+</FigurePanel>
+
+```sql
+BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = 'a';
+UPDATE accounts SET balance = balance + 100 WHERE id = 'b';
+COMMIT;
+```
+
+If the process crashes between the two `UPDATE`s, atomicity guarantees the first one gets rolled back too — you never end up with money debited from one account and not credited to the other.
+
+<Callout variant="definition" title="Not every database is ACID">
+Many NoSQL and distributed databases relax one or more of these guarantees — commonly isolation or full multi-key atomicity — in exchange for higher availability or throughput. "ACID" is a specific, strong promise, not a synonym for "reliable."
+</Callout>
+
+<Callout variant="warning" title="Consistency is the odd one out">
+Atomicity, isolation, and durability are properties the *database* enforces. Consistency (in the ACID sense) depends on the application defining correct constraints — the database only guarantees a transaction won't violate the constraints it's been told about (foreign keys, uniqueness, `CHECK` constraints).
+</Callout>
+
+<Callout variant="example" title="Where durability actually happens">
+Durability is usually implemented with a **write-ahead log (WAL)**: the transaction's changes are written to an append-only log on disk *before* the client is told the commit succeeded. If the database crashes right after, it replays the log on restart to recover.
+</Callout>

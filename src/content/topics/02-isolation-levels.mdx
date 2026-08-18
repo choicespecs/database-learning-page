@@ -1,0 +1,42 @@
+---
+title: "Isolation Levels"
+category: "transactions-and-consistency"
+order: 2
+summary: "How strictly the database hides concurrent transactions from each other — stricter isolation prevents more anomalies at the cost of throughput."
+tags: ["isolation", "concurrency", "dirty-read", "serializable"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import IsolationLevelDiagram from "../../components/diagrams/IsolationLevelDiagram.tsx";
+
+Perfect isolation means every transaction behaves as if it ran completely alone. In practice, full isolation is expensive, so SQL defines several weaker levels that each allow specific anomalies in exchange for better concurrency.
+
+<FigurePanel number={7} caption="Which anomalies each isolation level allows">
+  <IsolationLevelDiagram client:visible />
+</FigurePanel>
+
+## The anomalies, concretely
+
+- **Dirty read** — reading a row another transaction has written but not yet committed. If that transaction rolls back, you read a value that never really existed.
+- **Non-repeatable read** — reading the same row twice in one transaction and getting different values, because another transaction committed a change in between.
+- **Phantom read** — re-running the same filtered query twice and getting a different *set of rows*, because another transaction inserted or deleted a matching row in between.
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SELECT * FROM accounts WHERE balance < 0;
+-- ... application logic ...
+COMMIT;
+```
+
+<Callout variant="definition" title="Why not always use Serializable?">
+Serializable isolation is the only level that prevents every anomaly, but implementations enforce it either with heavy locking or by detecting conflicts and aborting/retrying transactions — both reduce throughput under high concurrency. Most applications default to Read Committed and reach for stronger isolation only where correctness genuinely depends on it (e.g. financial balances).
+</Callout>
+
+<Callout variant="warning" title="Defaults vary by database">
+PostgreSQL defaults to Read Committed. MySQL's InnoDB defaults to Repeatable Read — and its implementation of Repeatable Read actually prevents phantom reads too (via next-key locking), which is stricter than the ANSI SQL standard technically requires. Always check your specific database's docs rather than assuming the standard table applies exactly.
+</Callout>
+
+<Callout variant="example" title="A concrete non-repeatable read">
+Transaction A reads a `balance` of `100`. Transaction B updates it to `50` and commits. Transaction A reads `balance` again in the *same* transaction and now sees `50` — the same row gave two different answers within one transaction.
+</Callout>

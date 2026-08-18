@@ -1,0 +1,42 @@
+---
+title: "Storage Engines"
+category: "storage-and-indexing"
+order: 2
+summary: "How a database actually lays data out on disk — the two dominant designs are B-trees and LSM-trees, and they make opposite trade-offs."
+tags: ["storage-engines", "b-tree", "lsm-tree", "compaction"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import StorageEngineDiagram from "../../components/diagrams/StorageEngineDiagram.tsx";
+
+An index tells you *what* structure makes lookups fast; a storage engine decides *how writes actually land on disk* underneath that structure. The two dominant designs — B-trees and LSM-trees — make opposite trade-offs between write and read performance.
+
+<FigurePanel number={3} caption="What happens to a write, B-tree vs. LSM-tree">
+  <StorageEngineDiagram client:visible />
+</FigurePanel>
+
+## B-trees: update in place
+
+A B-tree storage engine finds the exact on-disk page a key belongs on and overwrites it directly. This keeps reads simple — there's always exactly one, current copy of each key — but writes involve random I/O: the page being updated could be anywhere on disk. Most traditional relational databases (PostgreSQL, MySQL/InnoDB, SQLite) default to this design.
+
+## LSM-trees: append, then merge
+
+An LSM-tree (Log-Structured Merge-tree) never updates a page in place. Writes are appended to an in-memory **memtable**; once that fills up, it's flushed to disk as an immutable, sorted **SSTable**. A background **compaction** process later merges SSTables together, discarding overwritten or deleted keys. Databases like Cassandra, RocksDB, and LevelDB use this design.
+
+<Callout variant="definition" title="Write amplification vs. read amplification">
+B-trees have low read amplification (one page has the current value) but can have high write amplification for small updates. LSM-trees have very low write amplification (sequential appends) but higher read amplification — a read may need to check the memtable and several SSTables before finding the most recent version of a key.
+</Callout>
+
+```sql
+-- Same INSERT, very different disk behavior underneath depending on engine:
+INSERT INTO events (id, payload) VALUES (42, '{"type": "click"}');
+```
+
+<Callout variant="warning" title="Compaction is not optional overhead">
+If compaction falls behind a write-heavy workload, an LSM-tree accumulates more and more SSTables, and every read has to check more of them — a common cause of the "sudden latency cliff" LSM-based systems can hit under sustained heavy writes.
+</Callout>
+
+<Callout variant="example" title="Why this matters for workload choice">
+Write-heavy, append-mostly workloads (metrics, logs, event streams) tend to favor LSM-trees for their fast sequential writes. Read-heavy, update-heavy workloads (typical OLTP applications) often favor B-trees for their predictable, single-page reads.
+</Callout>
