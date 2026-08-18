@@ -1,0 +1,129 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { CATEGORIES } from "../lib/categories";
+
+const allTopics = await getCollection("topics");
+
+const grouped = CATEGORIES.map((category) => ({
+  ...category,
+  topics: allTopics
+    .filter((t) => t.data.category === category.id)
+    .sort((a, b) => a.data.order - b.data.order),
+}));
+---
+
+<BaseLayout
+  title="DB Notes — A Database Field Guide"
+  description="A personal reference for core database concepts — normalization, indexing, partitioning, transactions, and more — each with an interactive diagram and example."
+>
+  <div class="landing">
+    <p class="landing__eyebrow">A field guide to</p>
+    <h1>Databases</h1>
+    <p class="landing__intro">
+      A personal reference for the core ideas that come up again and again — schema design,
+      storage and indexing, scaling, and transactions — each with a diagram you can click
+      through and a concrete example. Not a substitute for depth, but a fast way back to the
+      big picture.
+    </p>
+
+    {
+      grouped.map((category) => (
+        <section class="landing__part">
+          <h2>{category.title}</h2>
+          <div class="landing__grid">
+            {category.topics.map((topic) => (
+              <a class="topic-card" href={`${import.meta.env.BASE_URL}topics/${topic.id}/`}>
+                <h3>{topic.data.title}</h3>
+                <p>{topic.data.summary}</p>
+              </a>
+            ))}
+            {category.topics.length === 0 && <p class="landing__empty">Coming soon.</p>}
+          </div>
+        </section>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .landing {
+    max-width: 960px;
+  }
+
+  .landing__eyebrow {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 var(--space-2);
+  }
+
+  .landing h1 {
+    margin-bottom: var(--space-4);
+  }
+
+  .landing__intro {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    color: var(--color-text-muted);
+    max-width: var(--max-width-prose);
+    margin-bottom: var(--space-12);
+  }
+
+  .landing__part {
+    margin-bottom: var(--space-12);
+  }
+
+  .landing__part h2 {
+    margin-bottom: var(--space-6);
+  }
+
+  .landing__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-4);
+  }
+
+  .landing__empty {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--color-text-muted);
+  }
+
+  .topic-card {
+    display: block;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    text-decoration: none;
+    color: inherit;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast),
+      transform var(--transition-fast);
+  }
+
+  .topic-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+
+  .topic-card h3 {
+    font-size: var(--text-base);
+    margin: 0 0 var(--space-2);
+    color: var(--color-text);
+  }
+
+  .topic-card p {
+    font-family: var(--font-serif);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+</style>

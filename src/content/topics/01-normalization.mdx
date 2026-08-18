@@ -1,0 +1,50 @@
+---
+title: "Normalization"
+category: "fundamentals"
+order: 1
+summary: "Structuring tables so each fact is stored exactly once, eliminating redundancy and the update anomalies it causes."
+tags: ["normalization", "1nf", "2nf", "3nf", "schema-design"]
+---
+
+import Callout from "../../components/Callout.astro";
+import FigurePanel from "../../components/FigurePanel.astro";
+import NormalizationDiagram from "../../components/diagrams/NormalizationDiagram.tsx";
+
+Normalization is the process of organizing a schema so that each independent fact is stored in exactly one place. The payoff is that updating a fact — a customer's email, a product's price — only ever requires changing one row. The cost is that reading back a "complete" record (an order with its customer and items) now requires joining several tables back together.
+
+Normal forms are a series of increasingly strict rules for what a well-structured table looks like. Each one fixes a specific kind of redundancy left over from the previous form.
+
+<FigurePanel number={1} caption="An orders table, normalized step by step">
+  <NormalizationDiagram client:visible />
+</FigurePanel>
+
+## First normal form (1NF)
+
+Every column must hold a single, atomic value — no repeating groups or lists crammed into one field. A table with a `products` column containing `"Widget x2, Gadget x1"` isn't queryable by product without parsing a string; splitting those into their own rows (one per order+product) fixes it.
+
+## Second normal form (2NF)
+
+Applies once a table has a *composite* primary key (like `order_id + product_id`). Every non-key column must depend on the **whole** key, not just part of it. If `product_name` and `price` only depend on `product_id` (not on `order_id`), they don't belong in the order-items table — they belong in their own `Products` table.
+
+<Callout variant="definition" title="Partial dependency">
+A partial dependency exists when a non-key column depends on only *part* of a composite primary key. It's the specific redundancy 2NF eliminates.
+</Callout>
+
+## Third normal form (3NF)
+
+Every non-key column must depend **only** on the primary key — not on another non-key column. If `customer_email` depends on `customer_id`, and `customer_id` merely happens to sit on the `orders` row, then `customer_email` has a *transitive* dependency on `order_id` (via `customer_id`) rather than a direct one. Pulling customer fields into their own `Customers` table removes it.
+
+```sql
+-- 3NF: orders only references a customer, it doesn't duplicate their details
+SELECT o.order_id, c.customer_name, c.customer_email
+FROM orders o
+JOIN customers c ON c.customer_id = o.customer_id;
+```
+
+<Callout variant="warning" title="Normalization isn't free">
+Every normal form you add means another join at read time. Highly normalized schemas are great for write-heavy, consistency-sensitive systems (like billing) but can hurt read-heavy analytical workloads — which is exactly why data warehouses often deliberately denormalize.
+</Callout>
+
+<Callout variant="example" title="When to stop at a lower normal form">
+Many production schemas stop at a pragmatic 2NF or 3NF rather than chasing higher forms (BCNF, 4NF, 5NF) — the marginal redundancy those remove rarely justifies the extra joins for typical application workloads.
+</Callout>
